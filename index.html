@@ -157,6 +157,12 @@
                 </button>
             </div>
 
+            <!-- Out of Stock Warning -->
+            <div id="outOfStockWarning" class="hidden w-full max-w-[600px] mt-2 text-sm font-semibold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-2xl px-4 py-3 flex items-center justify-center space-x-2 text-center">
+                <i class="fa-solid fa-box-open"></i>
+                <span>No more stock — every prize has run out. Spinning is disabled.</span>
+            </div>
+
             <!-- Auto-Spin Status Bar -->
             <div id="autoSpinStatus" class="hidden w-full mt-4 p-3 bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-900 rounded-2xl flex items-center justify-between text-xs">
                 <div class="flex items-center space-x-2">
@@ -458,7 +464,7 @@
                 { name: "Tote Bag", quantity: "4", weight: 2 },
                 { name: "$50 Grab Voucher", quantity: "1", weight: 1 }
             ],
-            "Career Fair Prizes (Updated Stock)": [
+            "Career Fair (CE)": [
                 { name: "Sticker", quantity: "156", weight: 78 },
                 { name: "Pen", quantity: "23", weight: 11 },
                 { name: "$5 Grab Voucher", quantity: "15", weight: 7 },
@@ -800,13 +806,21 @@
             return Math.round(getWeightTotal()) === 100;
         }
 
+        // True if at least one item on the wheel can actually still be won —
+        // false when every prize is out of stock (whether or not sold-out items
+        // are still being shown on the wheel via "Keep sold-out prizes").
+        function hasAnySpinnableItem() {
+            return getActiveItems().some(item => getEffectiveWeight(item) > 0);
+        }
+
         // Shows a red banner when the configured percentages don't add up to 100%,
-        // stating exactly how far over or under the total is, and disables the spin
-        // button until it's fixed.
+        // and a separate banner when every prize has run out of stock — either one
+        // disables the spin button until it's resolved.
         function updateWeightTotalWarning() {
             const banner = document.getElementById('weightTotalWarning');
             const text = document.getElementById('weightTotalWarningText');
             const valid = isWeightTotalValid();
+            const stocked = state.items.length === 0 || hasAnySpinnableItem();
 
             if (banner && text) {
                 if (state.items.length === 0 || valid) {
@@ -821,11 +835,16 @@
                 }
             }
 
+            const stockWarning = document.getElementById('outOfStockWarning');
+            if (stockWarning) {
+                stockWarning.classList.toggle('hidden', stocked);
+            }
+
             if (centerSpinBtn && !state.isSpinning) {
-                centerSpinBtn.disabled = state.items.length > 0 && !valid;
+                centerSpinBtn.disabled = state.items.length > 0 && (!valid || !stocked);
             }
             if (wheelCanvas) {
-                wheelCanvas.style.cursor = (state.items.length > 0 && !valid) ? 'not-allowed' : 'pointer';
+                wheelCanvas.style.cursor = (state.items.length > 0 && (!valid || !stocked)) ? 'not-allowed' : 'pointer';
             }
         }
 
@@ -937,6 +956,18 @@
                     void banner.offsetWidth; // restart the pulse animation
                     banner.classList.add('animate-pulse');
                     setTimeout(() => banner.classList.remove('animate-pulse'), 1500);
+                }
+                return;
+            }
+
+            // Every prize must have some stock left — otherwise there's nothing to win.
+            if (!hasAnySpinnableItem()) {
+                const stockWarning = document.getElementById('outOfStockWarning');
+                if (stockWarning) {
+                    stockWarning.classList.remove('hidden', 'animate-pulse');
+                    void stockWarning.offsetWidth;
+                    stockWarning.classList.add('animate-pulse');
+                    setTimeout(() => stockWarning.classList.remove('animate-pulse'), 1500);
                 }
                 return;
             }
